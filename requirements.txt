@@ -1,0 +1,8 @@
+typing==3.7.4.1 
+urllib3==1.25.6
+requests
+beautifulsoup4
+simplejson
+pytz
+lxml
+python-slugify
