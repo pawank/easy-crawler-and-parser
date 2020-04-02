@@ -32,7 +32,7 @@ class CrawlerParser(object):
             driver = webdriver.Chrome()
             driver.get(url)
 
-            # scroll down        # setting time delay and time to load.
+            # scroll down and setting time delay - to get the images loaded on each scroll.  
             driver.execute_script("window.scrollTo(0,400)")
             timeDelay = random.randrange(2, 3)
             time.sleep(timeDelay)
@@ -58,7 +58,7 @@ class CrawlerParser(object):
             timeDelay = random.randrange(2, 3)
             time.sleep(timeDelay)
 
-
+            #get html page of url 
             content = driver.page_source.encode('utf-8').strip()
             soup = BeautifulSoup(content, 'lxml')
             html = soup.prettify()
@@ -105,9 +105,11 @@ class CrawlerParser(object):
         # getting product details
         product_details = driver.find_elements_by_class_name("pdp-product-description-content")
         fields_map['product_details'] = product_details[0].text
+        
+        #getting images, and adding to images[]
 
         soup = BeautifulSoup(html, 'lxml')
-
+        
         image_links = soup.find_all('div', {"class": "image-grid-image"})
         for link in image_links:
             l1 = link['style']
