@@ -154,7 +154,8 @@ def upload_to_s3(bucket_name, filename, as_json=None):
             else:
                 data = open(filename, 'rb')
             #print(data)
-            key = filename.split("/")[-1]
+            #key = filename.split("/")[-1]
+            key = filename
             s3.Bucket(bucket_name).put_object(Key=key, Body=data)
             print('Uploaded to s3 file = ', filename, ' with key = ', key)
             return True

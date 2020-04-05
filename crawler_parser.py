@@ -23,11 +23,14 @@ class CrawlerParser(object):
     end_index = 9999999999
     driver = None
     base_folder = "cache/"
+    is_delete_cache = False
+    save_to_s3 = None
 
-    def __init__(self, start_index=0, end_index = 9999999999):
+    def __init__(self, start_index=0, end_index = 9999999999, save_to_s3=False):
         super().__init__()
         self.start_index = start_index
         self.end_index = end_index
+        self.save_to_s3 = save_to_s3
         self._get_web_driver(True)
         if not self.driver:
             print('Init failed and exited with start index = ', self.start_index, ' and end index = ', self.end_index)
@@ -111,7 +114,10 @@ class CrawlerParser(object):
             html = soup.prettify()
             filename = self.base_folder + self.page_id(url) + "/" + self.page_id(url) + ".html"
             randomfile = save_to_random_file(html, filename, as_json=False)
-            #upload_to_s3(self.bucket_name, randomfile)
+            if self.save_to_s3:
+                upload_to_s3(self.bucket_name, randomfile)
+            if self.is_delete_cache:
+                os.remove(randomfile)
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: Helper crawl error = ', error, ' for url, ', url)
@@ -133,6 +139,10 @@ class CrawlerParser(object):
             driver.find_element_by_tag_name('body').screenshot(screenshot_filename)
             #driver.get_screenshot_as_file(screenshot_filename)
             print('Saved screenshot at = ', screenshot_filename, ' for url = ', url)
+            if self.save_to_s3:
+                upload_to_s3(self.bucket_name, screenshot_filename)
+            if self.is_delete_cache:
+                os.remove(screenshot_filename)
             return screenshot_filename
         except Exception as ex:
             error = str(traceback.format_exc())
@@ -201,15 +211,26 @@ class CrawlerParser(object):
 
             fields_map['images'] = images
 
+
+            image_prefix = self.base_folder + self.page_id(url) + "/"
+            s3_images = []
             for image in images:
                 print('Uploading image: ', image, ' to S3')
-                #upload_to_s3(self.bucket_name, image)
+                if self.save_to_s3:
+                    image_file, image_size = download_and_save(image_prefix, image, None, is_override=True, add_type=None)
+                    if image_file:
+                        s3_images.append({"image":image_file, "size":image_size})
+                        upload_to_s3(self.bucket_name, image_file)
                 print('Uploaded image: ', image, ' to S3')
+            fields_map['uploaded_images'] = s3_images
             datajson = self.make_data_json(fields_map)
             randomfile = save_to_random_file(datajson, datafilename, as_json=True)
             print('Uploading fields data file: ', randomfile, ' to S3')
-            #upload_to_s3(self.bucket_name, randomfile)
+            if self.save_to_s3:
+                upload_to_s3(self.bucket_name, randomfile)
             print('Uploaded fields data file: ', randomfile, ' to S3')
+            if self.is_delete_cache:
+                os.remove(randomfile)
             final_filename = randomfile
         except Exception as ex:
             error = str(traceback.format_exc())
@@ -232,12 +253,19 @@ class CrawlerParser(object):
         return html
 
     def run(self):
+        import shutil
         counter = 0
         try:
             excel_filename = "styles.csv"
             self.load_urls(excel_filename)
             for url in self.urls[self.start_index:self.end_index]:
-                os.makedirs(self.base_folder + self.page_id(url))
+                path = self.base_folder + self.page_id(url)
+                if path.find("cache") >= 0:
+                    if not os.path.exists(path):
+                        os.makedirs(path)
+                    else:
+                        shutil.rmtree(path) 
+                        os.makedirs(path)
                 html = self.crawl(url)
                 final_filename = self.parse(url, html)
                 print('Final filename found = ', final_filename, ' for url = ', url)
