@@ -92,9 +92,13 @@ def save_to_random_file(data, prefix, as_json):
             try:
                 if not prefix:
                     prefix = ""
+                    filename = "/tmp/" + prefix + str(getUUID(32)) + ".json"
                 else:
-                    prefix = str(prefix) + "_"
-                filename = "/tmp/" + prefix + str(getUUID(32)) + ".json"
+                    if not as_json:
+                        filename = prefix
+                    else:
+                        prefix = str(prefix) + ".json"
+                        filename = prefix
                 with open(filename, 'w', encoding='utf8') as f:
                     if as_json:
                         f.write(json.dumps(data))

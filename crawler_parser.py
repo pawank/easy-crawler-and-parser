@@ -12,7 +12,6 @@ from utils import load_excel_file, upload_to_s3, save_to_random_file, download_a
 import time
 import random
 from selenium import webdriver
-#from slugify import slugify
 
 CHROME = 'chromium'
 CHROME_DRIVER = 'chromedriver'
@@ -23,14 +22,15 @@ class CrawlerParser(object):
     start_index = 0
     end_index = 9999999999
     driver = None
+    base_folder = "cache/"
 
     def __init__(self, start_index=0, end_index = 9999999999):
         super().__init__()
         self.start_index = start_index
         self.end_index = end_index
-        self._get_web_driver(False)
+        self._get_web_driver(True)
         if not self.driver:
-            print('Init failed. Exited. ')
+            print('Init failed and exited with start index = ', self.start_index, ' and end index = ', self.end_index)
         else:
             print('Init done with start index = ', self.start_index, ' and end index = ', self.end_index)
 
@@ -65,6 +65,13 @@ class CrawlerParser(object):
                 self.urls.append(url)
         #print(self.urls)
         return self.urls
+
+    def page_id(self, url):
+        if url:
+            tokens = url.split("/")
+            tokens.reverse()
+            return tokens[0]
+        return None
 
     def _crawl_using_selenium(self, url):
         html = None
@@ -102,50 +109,85 @@ class CrawlerParser(object):
             content = driver.page_source.encode('utf-8').strip()
             soup = BeautifulSoup(content, 'lxml')
             html = soup.prettify()
-
-
+            filename = self.base_folder + self.page_id(url) + "/" + self.page_id(url) + ".html"
+            randomfile = save_to_random_file(html, filename, as_json=False)
+            #upload_to_s3(self.bucket_name, randomfile)
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: Helper crawl error = ', error, ' for url, ', url)
         return html
 
     def make_data_json(self, fields_map):
-        datajson = {}
+        from datetime import datetime
+        datajson = fields_map
+        datajson['at'] = str(datetime.now())
         return datajson
+
+    def save_page_screenshot(self, url, driver):
+        from slugify import slugify
+        try:
+            datafilename = slugify(url, replacements=[['|', 'or'], ['%', 'percent']])
+            S = lambda X: driver.execute_script('return document.body.parentNode.scroll'+X)
+            driver.set_window_size(S('Width'),S('Height')) # May need manual adjustment                                                                                                                
+            screenshot_filename = self.base_folder + self.page_id(url) + "/screenshot_" + datafilename + ".png"
+            driver.find_element_by_tag_name('body').screenshot(screenshot_filename)
+            #driver.get_screenshot_as_file(screenshot_filename)
+            print('Saved screenshot at = ', screenshot_filename, ' for url = ', url)
+            return screenshot_filename
+        except Exception as ex:
+            error = str(traceback.format_exc())
+            print('ERROR: Screenshot save error = ', error, ' for url, ', url)
+        return None
+
+    def get_text_value(self, data, is_all=None):
+        if data and len(data) > 0:
+            if is_all:
+                return list(map(lambda x: x.text, data))
+            return data[0].text
+        if is_all:
+            return []
+        return ""
 
     # Parse the input HTML and extract relevant information from it as per the user case and return True for success and False for error
     def parse(self, url, html):
+        from slugify import slugify
         images = []
         # A dictionary table of fields with values extracted from the html
-
-        fields_map = {
-
-        }
-
-
+        fields_map = {}
+        final_filename = None
         try:
+            fields_map['url'] = url
+            datafilename = self.base_folder + self.page_id(url) + "/" + slugify(url, replacements=[['|', 'or'], ['%', 'percent']])
+            driver = self.driver
             driver.get(url)
+
+            self.save_page_screenshot(url, driver)
 
             # Getting brand name
             brands = driver.find_elements_by_class_name("pdp-title")
-            fields_map['brand_name'] = brands[0].text
+            fields_map['brand'] = self.get_text_value(brands)
 
             # Getting product name
             product_name = driver.find_elements_by_class_name("pdp-name")
-            fields_map['product_name'] = product_name[0].text
+            fields_map['name'] = self.get_text_value(product_name)
 
             ## getting prices
             price = driver.find_elements_by_class_name("pdp-price")
-            fields_map['product_name'] = price[0].text
+            fields_map['price'] = self.get_text_value(price)
 
             # getting taxes
             taxes = driver.find_elements_by_class_name("pdp-vatInfo")
-            fields_map['tax']= taxes[0].text
+            fields_map['tax']= self.get_text_value(taxes)
 
             # getting product details
             product_details = driver.find_elements_by_class_name("pdp-product-description-content")
-            fields_map['product_details'] = product_details[0].text
+            fields_map['product_details'] = self.get_text_value(product_details)
+
+            metadescs = driver.find_elements_by_class_name("meta-desc")
+            fields_map['meta_desc'] = self.get_text_value(metadescs, True)
             
+
+            print('Fields map so far = ', fields_map, 'for url = ', url) 
             #getting images, and adding to images[]
 
             soup = BeautifulSoup(html, 'lxml')
@@ -154,40 +196,53 @@ class CrawlerParser(object):
             for link in image_links:
                 l1 = link['style']
                 final_url = l1[23:-3]
-                print(final_url)
+                print('Image found so far = ', final_url, 'for url = ', url) 
                 images.append(final_url)
+
+            fields_map['images'] = images
 
             for image in images:
                 print('Uploading image: ', image, ' to S3')
                 #upload_to_s3(self.bucket_name, image)
                 print('Uploaded image: ', image, ' to S3')
             datajson = self.make_data_json(fields_map)
-            datafilename = slugify(url, replacements=[['|', 'or'], ['%', 'percent']])
-            randomfile = save_to_random_file(datajson, datafilename)
+            randomfile = save_to_random_file(datajson, datafilename, as_json=True)
             print('Uploading fields data file: ', randomfile, ' to S3')
             #upload_to_s3(self.bucket_name, randomfile)
             print('Uploaded fields data file: ', randomfile, ' to S3')
+            final_filename = randomfile
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: URL parse error = ', error, ' for url, ', url)
-        return True
+        return final_filename
 
     # Crawl a given url and return filename of the HTML content saved
     def crawl(self, url):
         html = None
         try:
+            from datetime import datetime
+            dt = datetime.now()
+            print('Starting crawl for url = ', url, ' at time = ', dt)
             html = self._crawl_using_selenium(url)
+            dt = datetime.now()
+            print('Ended crawl for url = ', url, ' at time = ', dt)
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: URL crawl error = ', error, ' for url, ', url)
         return html
 
     def run(self):
-        html = None
+        counter = 0
         try:
             excel_filename = "styles.csv"
             self.load_urls(excel_filename)
+            for url in self.urls[self.start_index:self.end_index]:
+                os.makedirs(self.base_folder + self.page_id(url))
+                html = self.crawl(url)
+                final_filename = self.parse(url, html)
+                print('Final filename found = ', final_filename, ' for url = ', url)
+                counter += 1
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: Run error = ', error)
-        return html
+        return counter
