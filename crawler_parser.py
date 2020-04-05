@@ -18,6 +18,7 @@ CHROME_DRIVER = 'chromedriver'
 
 class CrawlerParser(object):
     bucket_name = "projectstore"
+    url_counter = 0
     urls = []
     start_index = 0
     end_index = 9999999999
@@ -55,6 +56,11 @@ class CrawlerParser(object):
     
     def exit_browser(self):
         self.driver.quit()
+
+    def restart_driver(self):
+        self.driver.quit()
+        timeDelay = random.randrange(2, 3)
+        self._get_web_driver(True)
 
     # Return a list of target url to be crawled and processed
     def load_urls(self, excel_filename):
@@ -259,6 +265,9 @@ class CrawlerParser(object):
             excel_filename = "styles.csv"
             self.load_urls(excel_filename)
             for url in self.urls[self.start_index:self.end_index]:
+                url_counter += 1
+                if url_counter % 10 == 0:
+                    self.restart_driver()
                 path = self.base_folder + self.page_id(url)
                 if path.find("cache") >= 0:
                     if not os.path.exists(path):
