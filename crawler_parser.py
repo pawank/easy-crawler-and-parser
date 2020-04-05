@@ -266,7 +266,7 @@ class CrawlerParser(object):
             self.load_urls(excel_filename)
             for url in self.urls[self.start_index:self.end_index]:
                 self.url_counter += 1
-                if self.url_counter % 1 == 0:
+                if self.url_counter % 10 == 0:
                     self.restart_driver()
                 path = self.base_folder + self.page_id(url)
                 if path.find("cache") >= 0:
@@ -275,9 +275,11 @@ class CrawlerParser(object):
                     else:
                         shutil.rmtree(path) 
                         os.makedirs(path)
+                print("%s = %s" % (url, "started")) 
                 html = self.crawl(url)
                 final_filename = self.parse(url, html)
                 print('Final filename found = ', final_filename, ' for url = ', url)
+                print("%s = %s" % (url, "ended")) 
                 counter += 1
         except Exception as ex:
             error = str(traceback.format_exc())

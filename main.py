@@ -1,4 +1,5 @@
 import os
+import sys
 import traceback
 
 def test_s3_upload():
@@ -12,12 +13,14 @@ def test_s3_upload():
     #print(randomfile)
     upload_to_s3("projectstore", randomfile)
 
-def main():
+def main(argv):
     #test_s3_upload()
     from crawler_parser import CrawlerParser
-    cp = CrawlerParser(0, 4, save_to_s3=True)
+    i = int(argv[1])
+    j = int(argv[2])
+    cp = CrawlerParser(i, j, save_to_s3=True)
     cp.run()
     pass
 
 if __name__ == '__main__':
-        main()
+        main(sys.argv[1:])
