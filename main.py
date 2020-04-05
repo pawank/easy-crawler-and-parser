@@ -13,7 +13,10 @@ def test_s3_upload():
     upload_to_s3("projectstore", randomfile)
 
 def main():
-    test_s3_upload()
+    #test_s3_upload()
+    from crawler_parser import CrawlerParser
+    cp = CrawlerParser()
+    cp.run()
     pass
 
 if __name__ == '__main__':
