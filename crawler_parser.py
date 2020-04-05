@@ -265,8 +265,8 @@ class CrawlerParser(object):
             excel_filename = "styles.csv"
             self.load_urls(excel_filename)
             for url in self.urls[self.start_index:self.end_index]:
-                url_counter += 1
-                if url_counter % 10 == 0:
+                self.url_counter += 1
+                if self.url_counter % 1 == 0:
                     self.restart_driver()
                 path = self.base_folder + self.page_id(url)
                 if path.find("cache") >= 0:

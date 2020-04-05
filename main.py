@@ -15,7 +15,7 @@ def test_s3_upload():
 def main():
     #test_s3_upload()
     from crawler_parser import CrawlerParser
-    cp = CrawlerParser(2, 3, save_to_s3=True)
+    cp = CrawlerParser(0, 4, save_to_s3=True)
     cp.run()
     pass
 
