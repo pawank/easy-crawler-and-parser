@@ -65,14 +65,29 @@ class CrawlerParser(object):
     # Return a list of target url to be crawled and processed
     def load_urls(self, excel_filename):
         self.urls = []
+        done_map = {}
+        with open("done_urls.txt", 'r') as f:
+            data = f.readlines()
+            for line in data:
+                url = line.strip()
+                if url and len(url) > 1:
+                    done_map[url] = done_map
+        i = 0
+        j = 0
         with open(excel_filename, 'r') as f:
             data = f.readlines()
             #print(data, len(data))
             for line in data:
                 tokens = line.split(",")
                 url = "".join(tokens[2:]).strip()
-                self.urls.append(url)
+                if url and len(url) > 1:
+                    if url in done_map:
+                        pass
+                    else:
+                        self.urls.append(url)
+                i += 1
         #print(self.urls)
+        print('Total no of urls to be parsed = ', len(self.urls), ' out of ', i)
         return self.urls
 
     def page_id(self, url):
@@ -282,6 +297,8 @@ class CrawlerParser(object):
                 final_filename = self.parse(url, html)
                 print('Final filename found = ', final_filename, ' for url = ', url)
                 print("%s = %s" % (url, "ended")) 
+                with open("done_urls.txt", 'a+') as f:
+                    f.write(url + "\n")
                 counter += 1
         except Exception as ex:
             error = str(traceback.format_exc())
