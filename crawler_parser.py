@@ -227,6 +227,8 @@ class CrawlerParser(object):
                     if image_file:
                         s3_images.append({"original":image, "uploaded":image_file, "size":image_size})
                         upload_to_s3(self.bucket_name, image_file)
+                        if self.is_delete_cache:
+                            os.remove(image_file)
                 print('Uploaded image: ', image, ' to S3')
             fields_map['uploaded_images'] = s3_images
             datajson = self.make_data_json(fields_map)
