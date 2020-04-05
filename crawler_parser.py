@@ -24,7 +24,7 @@ class CrawlerParser(object):
     end_index = 9999999999
     driver = None
     base_folder = "cache/"
-    is_delete_cache = False
+    is_delete_cache = True
     save_to_s3 = None
 
     def __init__(self, start_index=0, end_index = 9999999999, save_to_s3=False):
