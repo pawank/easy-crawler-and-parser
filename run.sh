@@ -1,13 +1,13 @@
 #!/bin/bash
 
 
-nohup python main.py 0 100 &
-nohup python main.py 100 200 &
-nohup python main.py 200 300 &
-nohup python main.py 300 400 &
-nohup python main.py 400 500 &
-nohup python main.py 500 600 &
-nohup python main.py 600 700 &
-nohup python main.py 700 800 &
-nohup python main.py 800 900 &
-nohup python main.py 900 1000 &
+nohup python main.py 0 1000 &
+nohup python main.py 1000 2000 &
+nohup python main.py 2000 3000 &
+nohup python main.py 3000 4000 &
+nohup python main.py 4000 5000 &
+nohup python main.py 5000 6000 &
+nohup python main.py 6000 7000 &
+nohup python main.py 7000 8000 &
+nohup python main.py 8000 9000 &
+nohup python main.py 9000 10000 &
