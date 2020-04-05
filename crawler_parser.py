@@ -219,7 +219,7 @@ class CrawlerParser(object):
                 if self.save_to_s3:
                     image_file, image_size = download_and_save(image_prefix, image, None, is_override=True, add_type=None)
                     if image_file:
-                        s3_images.append({"image":image_file, "size":image_size})
+                        s3_images.append({"original":image, "uploaded":image_file, "size":image_size})
                         upload_to_s3(self.bucket_name, image_file)
                 print('Uploaded image: ', image, ' to S3')
             fields_map['uploaded_images'] = s3_images

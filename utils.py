@@ -135,7 +135,7 @@ def download_and_save(prefix, url, ext, is_override=None, add_type=None):
         print(traceback.format_exc(), ' for url, ', url)
         filename = ''
         justfilename = ''
-    return (justfilename, sz)
+    return (filename, sz)
 
 
 def upload_to_s3(bucket_name, filename, as_json=None):
