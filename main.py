@@ -1,4 +1,5 @@
 import os
+import sys
 import traceback
 
 def test_s3_upload():
@@ -23,15 +24,20 @@ def generate_done_list():
                 if "url" in j:
                     done_map[j["url"]] = j["url"]
     print('No of done urls = ', len(done_map.keys()))
+    with open('files/done_urls.txt', 'w') as f:
+        f.write("\n".join(list(done_map.keys())))
 
 
-def main():
+def main(argv):
     #test_s3_upload()
-    from crawler_parser import CrawlerParser
-    #cp = CrawlerParser()
-    #cp.run()
     generate_done_list()
+    if False:
+        from crawler_parser import CrawlerParser
+        i = int(argv[1])
+        j = int(argv[2])
+        cp = CrawlerParser(i, j, save_to_s3=True)
+        cp.run()
     pass
 
 if __name__ == '__main__':
-        main()
+        main(sys.argv)

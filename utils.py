@@ -85,6 +85,16 @@ def getUUID(size=8, is_lower_case=False):
         return tmpuuid.lower()
     return tmpuuid
 
+def write_to_global_file(data):
+            filename = "global_data.txt"
+            try:
+                with open(filename, 'a+', encoding='utf8') as f:
+                        f.write(data + "\n")
+                print('Wrote to file = ', filename)
+            except Exception as exx:
+                tmperr = str(traceback.format_exc())
+                print("Data save error in global data file: ", filename, " and ex = ", tmperr)
+            return filename
 
 def save_to_random_file(data, prefix, as_json):
             output = data
@@ -92,12 +102,18 @@ def save_to_random_file(data, prefix, as_json):
             try:
                 if not prefix:
                     prefix = ""
+                    filename = "/tmp/" + prefix + str(getUUID(32)) + ".json"
                 else:
-                    prefix = str(prefix) + "_"
-                filename = "/tmp/" + prefix + str(getUUID(32)) + ".json"
+                    if not as_json:
+                        filename = prefix
+                    else:
+                        prefix = str(prefix) + ".json"
+                        filename = prefix
                 with open(filename, 'w', encoding='utf8') as f:
                     if as_json:
-                        f.write(json.dumps(data))
+                        jsonvalue = json.dumps(data)
+                        write_to_global_file(jsonvalue)
+                        f.write(jsonvalue)
                     else:
                         f.write(data)
                 print('Wrote to file = ', filename)
@@ -131,7 +147,7 @@ def download_and_save(prefix, url, ext, is_override=None, add_type=None):
         print(traceback.format_exc(), ' for url, ', url)
         filename = ''
         justfilename = ''
-    return (justfilename, sz)
+    return (filename, sz)
 
 
 def upload_to_s3(bucket_name, filename, as_json=None):
@@ -150,7 +166,8 @@ def upload_to_s3(bucket_name, filename, as_json=None):
             else:
                 data = open(filename, 'rb')
             #print(data)
-            key = filename.split("/")[-1]
+            #key = filename.split("/")[-1]
+            key = filename
             s3.Bucket(bucket_name).put_object(Key=key, Body=data)
             print('Uploaded to s3 file = ', filename, ' with key = ', key)
             return True
