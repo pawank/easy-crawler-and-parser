@@ -155,7 +155,10 @@ def upload_to_s3(bucket_name, filename, as_json=None):
     import boto3
     try:
         if os.path.exists(filename):
-            s3 = boto3.resource('s3')
+            session = boto3.Session(profile_name='nitish')
+            #s3 = boto3.resource('s3')
+            #s3 = session.client('s3')
+            s3 = session.resource('s3')
             '''
             for bucket in s3.buckets.all():
                 print(bucket.name)
@@ -177,3 +180,91 @@ def upload_to_s3(bucket_name, filename, as_json=None):
         error = str(traceback.format_exc())
         print('ERROR: Upload to s3 error = ', error, ' for url, ', filename)
     return False
+
+def get_dynamodb_table(table_name="data_files"):
+    #https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html
+    import boto3
+    try:
+        session = boto3.Session(profile_name='nitish', region_name='us-east-1')
+        # Get the service resource.
+        #dynamodb = boto3.resource('dynamodb')
+        dynamodb = session.client('dynamodb')
+        table_found = False
+        try:
+            response = dynamodb.describe_table(TableName=table_name)
+            table_found = True
+        except dynamodb.exceptions.ResourceNotFoundException:
+            # do something here as you require
+            error = str(traceback.format_exc())
+            print('TABLE not found = ', error)
+            pass
+        if table_found:
+            return dynamodb
+        else:
+            # Create the DynamoDB table.
+            table = dynamodb.create_table(
+                TableName=table_name,
+                KeySchema=[
+                    {
+                        'AttributeName': 'url',
+                        'KeyType': 'HASH'
+                    },
+                    {
+                        'AttributeName': 'pid',
+                        'KeyType': 'RANGE'
+                    }
+                ],
+                AttributeDefinitions=[
+                    {
+                        'AttributeName': 'url',
+                        'AttributeType': 'S'
+                    },
+                    {
+                        'AttributeName': 'pid',
+                        'AttributeType': 'S'
+                    }
+                ],
+                ProvisionedThroughput={
+                    'ReadCapacityUnits': 1,
+                    'WriteCapacityUnits': 1
+                }
+            )
+            # Wait until the table exists.
+            dynamodb.get_waiter('table_exists').wait(TableName=table_name)
+            table_found = True
+            # Print out some data about the table.
+            print(table.item_count)
+            return dynamodb
+    except Exception as ex:
+        error = str(traceback.format_exc())
+        print('ERROR: Saving to dynamodb error = ', error, ' for table, ', table_name)
+    return None
+
+def save_in_dynamodb(table_name, data_table):
+    import boto3
+    try:
+        pid = None
+        if 'pid' in data_table:
+            pass
+        else:
+            tokens = data_table['url'].split('/')
+            tokens.reverse()
+            pid = tokens[0]
+        data = json.dumps(data_table)
+        table = {
+            'url':{'S': data_table['url']},
+            'pid':{'S': pid},
+            'data': {'S': data}
+        }
+        session = boto3.Session(profile_name='nitish', region_name='ap-south-1')
+        client = session.client('dynamodb')
+        client = get_dynamodb_table(table_name)
+        client.put_item(
+            TableName=table_name,
+            Item=table
+        )
+        return True
+    except Exception as ex:
+        error = str(traceback.format_exc())
+        print('ERROR: Saving to dynamodb error = ', error, ' for table, ', table_name)
+    return None

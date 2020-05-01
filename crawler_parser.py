@@ -180,7 +180,7 @@ class CrawlerParser(object):
         return ""
 
     # Parse the input HTML and extract relevant information from it as per the user case and return True for success and False for error
-    def parse(self, url, html):
+    def parse(self, url, html, counter=0):
         from slugify import slugify
         images = []
         # A dictionary table of fields with values extracted from the html
@@ -201,6 +201,15 @@ class CrawlerParser(object):
             # Getting product name
             product_name = driver.find_elements_by_class_name("pdp-name")
             fields_map['name'] = self.get_text_value(product_name)
+            if not fields_map['name']:
+                counter += 1
+                if counter > 1:
+                    pass
+                else:
+                    print('Retrying again URL = ', url, ' with counter = ', counter)
+                    timeDelay = random.randrange(3, 5)
+                    time.sleep(timeDelay)
+                    return self.parse(url, html, counter)
 
             ## getting prices
             price = driver.find_elements_by_class_name("pdp-price")
@@ -300,6 +309,8 @@ class CrawlerParser(object):
                 with open("done_urls.txt", 'a+') as f:
                     f.write(url + "\n")
                 counter += 1
+                timeDelay = random.randrange(5, 10)
+                time.sleep(timeDelay)
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: Run error = ', error)
