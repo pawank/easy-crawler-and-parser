@@ -24,7 +24,7 @@ def generate_done_list():
                 if "url" in j:
                     done_map[j["url"]] = j["url"]
     print('No of done urls = ', len(done_map.keys()))
-    with open('files/done_urls.txt', 'w') as f:
+    with open('files/done_urls.txt', 'a') as f:
         f.write("\n".join(list(done_map.keys())))
 
 
