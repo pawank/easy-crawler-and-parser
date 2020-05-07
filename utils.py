@@ -149,6 +149,65 @@ def download_and_save(prefix, url, ext, is_override=None, add_type=None):
         justfilename = ''
     return (filename, sz)
 
+def download_from_s3(bucket_name):
+    import boto3
+    try:
+            records = []
+            session = boto3.Session(profile_name='nitish')
+            s3 = session.resource('s3')
+            r = "cache/99322/https-www-myntra-com-99322.json"
+            if r:
+                    filename = "cache/s3/" + r.replace("/","_")
+                    try:
+                        s3.meta.client.download_file(bucket_name, r, filename)
+                        with open(filename, 'r') as jfile:
+                            for x in jfile.readlines():
+                                if len(x.strip()) > 1:
+                                    data = json.loads(x.strip())
+                                    if data and (data['name'] == '' or data['images'] == []):
+                                        print("DATA: ", data)
+                    except Exception as ex:
+                        error = str(traceback.format_exc())
+                        print('ERROR in downloading = ', r, ' == ', error)
+    except Exception as ex:
+        error = str(traceback.format_exc())
+        print('ERROR: listing from s3 error = ', error)
+    return []
+
+def get_files_listed_in_s3(bucket_name):
+    import boto3
+    try:
+            records = []
+            session = boto3.Session(profile_name='nitish')
+            s3 = session.resource('s3')
+            for bucket in s3.buckets.all():
+                if bucket.name == bucket_name:
+                    for obj in bucket.objects.all():
+                        #print('{0}:{1}'.format(bucket.name, obj.key))
+                        if obj.key.find(".json") >= 0:
+                            records.append(obj.key)
+            tobedone = []
+            with open('tobedone.txt', 'w') as f:
+                f.write("\n".join(records))
+            for r in records:
+                    filename = "cache/s3/" + r.replace("/","_")
+                    try:
+                        s3.meta.client.download_file(bucket_name, r, filename)
+                        with open(filename, 'r') as jfile:
+                            for x in jfile.readlines():
+                                if len(x.strip()) > 1:
+                                    data = json.loads(x.strip())
+                                    if data and (data['name'] == '' or data['images'] == []):
+                                        tobedone.append(data['url'])
+                    except Exception as ex:
+                        error = str(traceback.format_exc())
+                        print('ERROR in downloading = ', r)
+            with open('tobedone_urls.txt', 'w') as f:
+                f.write("\n".join(tobedone))
+    except Exception as ex:
+        error = str(traceback.format_exc())
+        print('ERROR: listing from s3 error = ', error)
+    return []
 
 def upload_to_s3(bucket_name, filename, as_json=None):
     #https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html

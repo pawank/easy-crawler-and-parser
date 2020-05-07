@@ -26,12 +26,14 @@ class CrawlerParser(object):
     base_folder = "cache/"
     is_delete_cache = True
     save_to_s3 = None
+    is_override = None
 
-    def __init__(self, start_index=0, end_index = 9999999999, save_to_s3=False):
+    def __init__(self, start_index=0, end_index = 9999999999, save_to_s3=False, is_override=None):
         super().__init__()
         self.start_index = start_index
         self.end_index = end_index
         self.save_to_s3 = save_to_s3
+        self.is_override = is_override
         self._get_web_driver(True)
         if not self.driver:
             print('Init failed and exited with start index = ', self.start_index, ' and end index = ', self.end_index)
@@ -80,11 +82,16 @@ class CrawlerParser(object):
             for line in data:
                 tokens = line.split(",")
                 url = "".join(tokens[2:]).strip()
+                if len(tokens) <= 2:
+                    url = line.strip()
                 if url and len(url) > 1:
-                    if url in done_map:
-                        pass
-                    else:
+                    if self.is_override:
                         self.urls.append(url)
+                    else:
+                        if url in done_map:
+                            pass
+                        else:
+                            self.urls.append(url)
                 i += 1
         #print(self.urls)
         print('Total no of urls to be parsed = ', len(self.urls), ' out of ', i)
@@ -264,6 +271,9 @@ class CrawlerParser(object):
             if self.is_delete_cache:
                 os.remove(randomfile)
             final_filename = randomfile
+            if fields_map['name'] == '' or fields_map['images'] == []:
+                with open('error_urls.txt', 'a') as eff:
+                    eff.write(fields_map['url'] + "\n")
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: URL parse error = ', error, ' for url, ', url)
