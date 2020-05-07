@@ -12,6 +12,7 @@ from utils import load_excel_file, upload_to_s3, save_to_random_file, download_a
 import time
 import random
 from selenium import webdriver
+from simple_mail_client import send_mail
 
 CHROME = 'chromium'
 CHROME_DRIVER = 'chromedriver'
@@ -27,6 +28,7 @@ class CrawlerParser(object):
     is_delete_cache = True
     save_to_s3 = None
     is_override = None
+    bad_url_count = 0
 
     def __init__(self, start_index=0, end_index = 9999999999, save_to_s3=False, is_override=None):
         super().__init__()
@@ -272,8 +274,13 @@ class CrawlerParser(object):
                 os.remove(randomfile)
             final_filename = randomfile
             if fields_map['name'] == '' or fields_map['images'] == []:
+                self.bad_url_count += 1
                 with open('error_urls.txt', 'a') as eff:
                     eff.write(fields_map['url'] + "\n")
+                if self.bad_url_count % 10 == 0:
+                    self.bad_url_count = 0
+                    #sending email as alert
+                    send_mail("admin@rapidor.co", "pawan.kumar@gmail.com", "NO DATA FOUND", str(fields_map['url']))
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: URL parse error = ', error, ' for url, ', url)

@@ -132,3 +132,5 @@ dmypy.json
 dev
 dev/
 ~/.aws
+
+set_env.sh
