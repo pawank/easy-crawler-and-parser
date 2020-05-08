@@ -76,10 +76,15 @@ class CrawlerParser(object):
                 url = line.strip()
                 if url and len(url) > 1:
                     done_map[url] = done_map
+        print("total done urls = ", len(done_map.keys()))
+        donexs = set(list(done_map.keys()))
+        totals = 0
         i = 0
         j = 0
         with open(excel_filename, 'r') as f:
             data = f.readlines()
+            print("Total urls in styles = ", len(data))
+            totals = len(data)
             #print(data, len(data))
             for line in data:
                 tokens = line.split(",")
@@ -96,7 +101,9 @@ class CrawlerParser(object):
                             self.urls.append(url)
                 i += 1
         #print(self.urls)
-        print('Total no of urls to be parsed = ', len(self.urls), ' out of ', i)
+        self.urls = set(self.urls)
+        self.urls = list(self.urls - donexs)
+        print('Total no of urls to be parsed = ', len(self.urls), ' out of ', totals)
         return self.urls
 
     def page_id(self, url):
@@ -253,6 +260,7 @@ class CrawlerParser(object):
 
             image_prefix = self.base_folder + self.page_id(url) + "/"
             s3_images = []
+            '''
             for image in images:
                 print('Uploading image: ', image, ' to S3')
                 if self.save_to_s3:
@@ -263,6 +271,7 @@ class CrawlerParser(object):
                         if self.is_delete_cache:
                             os.remove(image_file)
                 print('Uploaded image: ', image, ' to S3')
+            '''
             fields_map['uploaded_images'] = s3_images
             datajson = self.make_data_json(fields_map)
             randomfile = save_to_random_file(datajson, datafilename, as_json=True)
@@ -326,8 +335,8 @@ class CrawlerParser(object):
                 with open("done_urls.txt", 'a+') as f:
                     f.write(url + "\n")
                 counter += 1
-                timeDelay = random.randrange(5, 10)
-                time.sleep(timeDelay)
+                #timeDelay = random.randrange(5, 10)
+                #time.sleep(timeDelay)
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: Run error = ', error)

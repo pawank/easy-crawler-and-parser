@@ -122,6 +122,19 @@ def save_to_random_file(data, prefix, as_json):
                 print("Data save error in file: ", filename, " and ex = ", tmperr, " with prefix = ", prefix)
             return filename
 
+def get_proxy(counter=None):
+    import random
+    http = ['112.133.214.245:80','112.133.214.241:80','207.148.118.235:8080','121.243.95.179:3128','144.91.95.95:8118']
+    https = ['167.71.198.204:8080','140.227.173.230:1000','117.1.16.131:8080','165.22.36.75:8888']
+    if counter:
+        pass
+    else:
+        counter = random.randint(0, 2)
+    proxies = {
+              'http': 'http://' + http[counter],
+              'https': 'https://' + https[counter],
+                }
+    return proxies
 
 #ext with which file is to be saved locally e.g. .pdf .jpg
 def download_and_save(prefix, url, ext, is_override=None, add_type=None):
@@ -138,7 +151,7 @@ def download_and_save(prefix, url, ext, is_override=None, add_type=None):
             if os.path.exists(filename):
                 sz = file_size(filename)
                 return (justfilename, sz)
-        response = requests.get(url, headers=headers, verify=False, timeout=600)
+        response = requests.get(url, headers=headers, verify=False, timeout=600, proxies=get_proxy())
         with open(filename, 'wb') as f:
             f.write(response.content)
         print('download_and_save: Image from, %s and saved filename, %s' % (url, filename))
@@ -327,3 +340,5 @@ def save_in_dynamodb(table_name, data_table):
         error = str(traceback.format_exc())
         print('ERROR: Saving to dynamodb error = ', error, ' for table, ', table_name)
     return None
+
+
