@@ -65,6 +65,57 @@ def generate_good_saved_urls():
         f.write("\n".join(urls))
     print('No of ok urls = ', len(records))
 
+def generate_chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
+def generate_styles_stats():
+    from crawler_parser import CrawlerParser
+    excel_filename = "styles.csv"
+    cp = CrawlerParser(0, 400000000, save_to_s3=True, is_override=True)
+    urls = cp.load_urls(excel_filename)
+    sub_lists = generate_chunks(urls, 5000)
+    return sub_lists
+
+def start_run(urls):
+    from crawler_parser import CrawlerParser
+    cp = CrawlerParser(0, 400000000, save_to_s3=True, is_override=True)
+    cp.start_run(urls)
+
+def run_in_threads(urls_lists):
+    import threading
+    import multiprocessing
+    import shutil
+    counter = 0
+    try:
+        os.system("cat files/error_urls.txt >> files/all_error_urls.txt")
+        os.system("rm files/error_urls.txt")
+        threads = len(urls_lists)
+        if threads > 10:
+            threads = 10
+        print("No of threads = ", threads)
+        jobs = []
+        for i in range(0, threads):
+            urls = urls_lists[i]
+            #thread = threading.Thread(target=start_run(urls))
+            #print('URLS:', urls)
+            thread = multiprocessing.Process(target=start_run, args=(urls,)) 
+            jobs.append(thread)
+
+        # Start the threads (i.e. calculate the random number lists)
+        for j in jobs:
+            j.start()
+        print('All jobs started now..')
+        # Ensure all of the threads have finished
+        for j in jobs:
+            j.join()
+    except Exception as ex:
+        error = str(traceback.format_exc())
+        print('ERROR: Run error = ', error)
+    return counter
+
 def main(argv):
     #test_s3_upload()
     from utils import get_dynamodb_table, save_in_dynamodb, get_files_listed_in_s3, download_from_s3
@@ -77,7 +128,15 @@ def main(argv):
         #generate_done_list()
         generate_error_urls()
         generate_good_saved_urls()
+        generate_styles_stats()
+        #from utils import update_counter_value
+        #update_counter_value()
     else:
+        generate_error_urls()
+        generate_good_saved_urls()
+        generate_styles_stats()
+        os.system("cat files/ok_urls.txt >> done_urls.txt")
+        '''
         from crawler_parser import CrawlerParser
         i = int(argv[1])
         j = int(argv[2])
@@ -85,7 +144,16 @@ def main(argv):
         if len(argv) >= 4:
             is_override = True
         cp = CrawlerParser(i, j, save_to_s3=True, is_override=True)
-        cp.run()
+        '''
+        lists = list(generate_styles_stats())
+        '''
+        lists = [["https://www.myntra.com/1132629"],["https://www.myntra.com/1132717"],
+  ["https://www.myntra.com/1135579"],
+  ["https://www.myntra.com/1141650"],
+  ["https://www.myntra.com/1147206"]]
+        '''
+        run_in_threads(lists)
+        #print(len(lists))
     pass
 
 if __name__ == '__main__':

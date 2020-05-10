@@ -136,6 +136,19 @@ def get_proxy(counter=None):
                 }
     return proxies
 
+def update_counter_value():
+        c = 0
+        if os.path.exists('counter.txt'):
+            with open('counter.txt', 'r') as eff:
+                c = eff.read().strip()
+                if c == '':
+                    c = 0
+                else:
+                    c = int(c)
+        c = c + 1
+        with open('counter.txt', 'w') as eff:
+                eff.write(str(c))
+
 #ext with which file is to be saved locally e.g. .pdf .jpg
 def download_and_save(prefix, url, ext, is_override=None, add_type=None):
     ext = '.jpg'
@@ -151,7 +164,8 @@ def download_and_save(prefix, url, ext, is_override=None, add_type=None):
             if os.path.exists(filename):
                 sz = file_size(filename)
                 return (justfilename, sz)
-        response = requests.get(url, headers=headers, verify=False, timeout=600, proxies=get_proxy())
+        response = requests.get(url, headers=headers, verify=False, timeout=600)
+        #response = requests.get(url, headers=headers, verify=False, timeout=600, proxies=get_proxy())
         with open(filename, 'wb') as f:
             f.write(response.content)
         print('download_and_save: Image from, %s and saved filename, %s' % (url, filename))

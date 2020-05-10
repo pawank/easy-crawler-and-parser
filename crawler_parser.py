@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 import traceback
 import re
 import simplejson as json
-from utils import load_excel_file, upload_to_s3, save_to_random_file, download_and_save
+from utils import load_excel_file, upload_to_s3, save_to_random_file, download_and_save, update_counter_value
 import time
 import random
 from selenium import webdriver
@@ -30,13 +30,14 @@ class CrawlerParser(object):
     is_override = None
     bad_url_count = 0
 
-    def __init__(self, start_index=0, end_index = 9999999999, save_to_s3=False, is_override=None):
+    def __init__(self, start_index=0, end_index = 9999999999, save_to_s3=False, is_override=None, show_stats=None):
         super().__init__()
         self.start_index = start_index
         self.end_index = end_index
         self.save_to_s3 = save_to_s3
         self.is_override = is_override
-        self._get_web_driver(True)
+        if not show_stats:
+            self._get_web_driver(True)
         if not self.driver:
             print('Init failed and exited with start index = ', self.start_index, ' and end index = ', self.end_index)
         else:
@@ -88,7 +89,9 @@ class CrawlerParser(object):
             #print(data, len(data))
             for line in data:
                 tokens = line.split(",")
-                url = "".join(tokens[2:]).strip()
+                url = None
+                if len(tokens) >= 3:
+                    url = "".join(tokens[2:]).strip()
                 if len(tokens) <= 2:
                     url = line.strip()
                 if url and len(url) > 1:
@@ -99,6 +102,8 @@ class CrawlerParser(object):
                             pass
                         else:
                             self.urls.append(url)
+                else:
+                    print("\n\nINVALID URL = ", url)
                 i += 1
         #print(self.urls)
         self.urls = set(self.urls)
@@ -280,16 +285,20 @@ class CrawlerParser(object):
                 upload_to_s3(self.bucket_name, randomfile)
             print('Uploaded fields data file: ', randomfile, ' to S3')
             if self.is_delete_cache:
-                os.remove(randomfile)
+                #os.remove(randomfile)
+                pass
             final_filename = randomfile
             if fields_map['name'] == '' or fields_map['images'] == []:
                 self.bad_url_count += 1
+                update_counter_value()
                 with open('error_urls.txt', 'a') as eff:
                     eff.write(fields_map['url'] + "\n")
                 if self.bad_url_count % 10 == 0:
                     self.bad_url_count = 0
                     #sending email as alert
-                    send_mail("admin@rapidor.co", "pawan.kumar@gmail.com", "NO DATA FOUND", str(fields_map['url']))
+                    #send_mail("admin@rapidor.co", "pawan.kumar@gmail.com", "NO DATA FOUND", str(fields_map['url']))
+                    pass
+            #update_counter_value()
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: URL parse error = ', error, ' for url, ', url)
@@ -309,7 +318,7 @@ class CrawlerParser(object):
             error = str(traceback.format_exc())
             print('ERROR: URL crawl error = ', error, ' for url, ', url)
         return html
-
+    
     def run(self):
         import shutil
         counter = 0
@@ -337,6 +346,42 @@ class CrawlerParser(object):
                 counter += 1
                 #timeDelay = random.randrange(5, 10)
                 #time.sleep(timeDelay)
+        except Exception as ex:
+            error = str(traceback.format_exc())
+            print('ERROR: Run error = ', error)
+        return counter
+
+    def start_run(self, urls):
+        import threading
+        import shutil
+        counter = 0
+        try:
+            import datetime
+            self.urls = urls
+            #print(self.urls)
+            print("Starting with urls count ", len(urls), " at = ", datetime.datetime.now())
+            for url in self.urls:
+                self.url_counter += 1
+                if self.url_counter % 30 == 0:
+                    self.restart_driver()
+                path = self.base_folder + self.page_id(url)
+                if path.find("cache") >= 0:
+                    if not os.path.exists(path):
+                        os.makedirs(path)
+                    else:
+                        shutil.rmtree(path) 
+                        os.makedirs(path)
+                print("%s = %s" % (url, "started")) 
+                html = self.crawl(url)
+                final_filename = self.parse(url, html)
+                print('Final filename found = ', final_filename, ' for url = ', url)
+                print("%s = %s" % (url, "ended")) 
+                with open("done_urls.txt", 'a+') as f:
+                    f.write(url + "\n")
+                counter += 1
+                #timeDelay = random.randrange(5, 10)
+                #time.sleep(timeDelay)
+            self.exit_browser()
         except Exception as ex:
             error = str(traceback.format_exc())
             print('ERROR: Run error = ', error)
