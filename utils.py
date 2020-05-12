@@ -201,6 +201,31 @@ def download_from_s3(bucket_name):
         print('ERROR: listing from s3 error = ', error)
     return []
 
+def allocate_new_ip():
+    import boto3
+    try:
+            records = []
+            session = boto3.Session(profile_name='nitish')
+            ec2 = session.resource('ec2')
+            #ec2 = boto3.client('ec2')
+            filters = [
+                        {'Name': 'domain', 'Values': ['vpc']}
+                        ]
+            response = ec2.meta.client.describe_addresses(Filters=filters)
+            print('AWS instances info: ', response)
+            from botocore.exceptions import ClientError
+            if response:
+                for x in response["Addresses"]:
+                    release_response = ec2.meta.client.release_address(AllocationId=x['AllocationId'])
+                    print('Server info for IP = ', release_response, ' IP released')
+                    allocation = ec2.meta.client.allocate_address(Domain='vpc')
+                    currentresponse = ec2.meta.client.associate_address(AllocationId=allocation['AllocationId'],InstanceId=x['InstanceId'])
+                    print('New IP allocated = ', currentresponse)
+    except Exception as ex:
+        error = str(traceback.format_exc())
+        print('ERROR: Elastic IP = ', error)
+    return []
+
 def get_files_listed_in_s3(bucket_name):
     import boto3
     try:
