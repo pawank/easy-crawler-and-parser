@@ -11,6 +11,7 @@ import simplejson as json
 from utils import load_excel_file, upload_to_s3, save_to_random_file, download_and_save, update_counter_value
 import time
 import random
+import requests
 from selenium import webdriver
 from simple_mail_client import send_mail
 
@@ -37,7 +38,8 @@ class CrawlerParser(object):
         self.save_to_s3 = save_to_s3
         self.is_override = is_override
         if not show_stats:
-            self._get_web_driver(True)
+            #self._get_web_driver(True)
+            pass
         if not self.driver:
             print('Init failed and exited with start index = ', self.start_index, ' and end index = ', self.end_index)
         else:
@@ -60,12 +62,14 @@ class CrawlerParser(object):
             print('ERROR: Driver loading error = ', error)
     
     def exit_browser(self):
-        self.driver.quit()
+        if self.driver:
+            self.driver.quit()
 
     def restart_driver(self):
-        self.driver.quit()
+        if self.driver:
+            self.driver.quit()
         timeDelay = random.randrange(2, 3)
-        self._get_web_driver(True)
+        #self._get_web_driver(True)
 
     # Return a list of target url to be crawled and processed
     def load_urls(self, excel_filename):
@@ -117,7 +121,7 @@ class CrawlerParser(object):
             tokens.reverse()
             return tokens[0]
         return None
-
+    
     def _crawl_using_selenium(self, url):
         html = None
         try:
@@ -154,6 +158,32 @@ class CrawlerParser(object):
             content = driver.page_source.encode('utf-8').strip()
             soup = BeautifulSoup(content, 'lxml')
             html = soup.prettify()
+            filename = self.base_folder + self.page_id(url) + "/" + self.page_id(url) + ".html"
+            randomfile = save_to_random_file(html, filename, as_json=False)
+            if self.save_to_s3:
+                upload_to_s3(self.bucket_name, randomfile)
+            if self.is_delete_cache:
+                os.remove(randomfile)
+        except Exception as ex:
+            error = str(traceback.format_exc())
+            print('ERROR: Helper crawl error = ', error, ' for url, ', url)
+        return html
+
+    def _crawl_using_requests(self, url):
+        html = None
+        try:
+            id = self.page_id(url)
+            r = requests.get(url)
+            html = r.text
+            #timeDelay = random.randrange(2, 3)
+            #time.sleep(timeDelay)
+            '''
+            with open("/tmp/" + id, "wb") as f:
+                f.write(html)
+            
+            with open("/tmp/" + id, "rb") as f:
+                html = f.read()
+            ''' 
             filename = self.base_folder + self.page_id(url) + "/" + self.page_id(url) + ".html"
             randomfile = save_to_random_file(html, filename, as_json=False)
             if self.save_to_s3:
@@ -303,6 +333,133 @@ class CrawlerParser(object):
             error = str(traceback.format_exc())
             print('ERROR: URL parse error = ', error, ' for url, ', url)
         return final_filename
+    
+    def make_final_json_from_pdp_data(self, json_data):
+        json_data = json_data["pdpData"] if "pdpData" in json_data else None
+        if json_data:
+            id = json_data["id"]
+            brand = json_data["brand"] if "brand" in json_data else None
+            name = json_data["name"]
+            brand_name = brand["name"] if brand else ""
+            mrp = json_data["mrp"] if "mrp" in json_data else ""
+            productDetails = json_data["productDetails"] if "productDetails" in json_data else []
+            prod = ""
+            care = ""
+            if productDetails:
+                for p in productDetails:
+                    if p["title"] == "Product Details":
+                        description = p["description"] if "description" in p else ""
+                        if description:
+                            prod = description
+                    if p["title"] == "MATERIAL & CARE":
+                        description = p["description"] if "description" in p else ""
+                        if description:
+                            care = description
+            meta_desc = []
+            serviceability = json_data["serviceability"] if "serviceability" in json_data else None
+            if serviceability:
+                meta_desc = serviceability["descriptors"] if "descriptors" in serviceability else []
+            albums = json_data["media"]["albums"]
+            imgs = []
+            for album in albums:
+                images = album["images"] if "images" in album else []
+                #print("IMAGES: ", images)
+                for img in images:
+                    if 'imageURL' in img:
+                        imgs.append(img['imageURL'])
+            from datetime import datetime
+            at = str(datetime.now())
+            j = {
+            "url": "https://www.myntra.com/" + str(id),
+            "brand": brand_name,
+            "name": name.replace(brand_name, "") if brand_name else "",
+            "price": "Rs. " + str(mrp) if mrp else "",
+            "tax": "inclusive of all taxes",
+            "product_details": prod,
+            "material_and_care": care,
+            "meta_desc": meta_desc,
+            "images": imgs,
+            "uploaded_images": [],
+            "at": at,
+            "original":json_data
+            }
+            return j
+        return None
+    
+    def parse_using_requests(self, url, html, counter=0):
+        from slugify import slugify
+        images = []
+        # A dictionary table of fields with values extracted from the html
+        fields_map = {}
+        final_filename = None
+        try:
+            maybejson = html.split("window.__myx = ")[1]
+            maybejson = maybejson.split('''</script><script>window''')[0]
+            #print(maybejson.strip())
+            json_data = json.loads(maybejson.strip())
+
+            fields_map['url'] = url
+            datafilename = self.base_folder + self.page_id(url) + "/" + slugify(url, replacements=[['|', 'or'], ['%', 'percent']])
+            json_data = self.make_final_json_from_pdp_data(json_data)
+            product_name = None
+            if json_data:
+                product_name = json_data["name"]
+            if not product_name:
+                counter += 1
+                if counter > 1:
+                    pass
+                else:
+                    print('Retrying again URL = ', url, ' with counter = ', counter)
+                    timeDelay = random.randrange(3, 5)
+                    time.sleep(timeDelay)
+                    return self.parse_using_requests(url, html, counter)
+
+            fields_map = json_data
+
+            image_prefix = self.base_folder + self.page_id(url) + "/"
+            images = json_data["images"]
+            s3_images = []
+            '''
+            for image in images:
+                print('Uploading image: ', image, ' to S3')
+                if self.save_to_s3:
+                    image_file, image_size = download_and_save(image_prefix, image, None, is_override=True, add_type=None)
+                    if image_file:
+                        s3_images.append({"original":image, "uploaded":image_file, "size":image_size})
+                        upload_to_s3(self.bucket_name, image_file)
+                        if self.is_delete_cache:
+                            os.remove(image_file)
+                print('Uploaded image: ', image, ' to S3')
+            '''
+            fields_map['uploaded_images'] = s3_images
+            datajson = self.make_data_json(fields_map)
+            randomfile = save_to_random_file(datajson, datafilename, as_json=True)
+            print('Uploading fields data file: ', randomfile, ' to S3')
+            if self.save_to_s3:
+                upload_to_s3(self.bucket_name, randomfile)
+            print('Uploaded fields data file: ', randomfile, ' to S3')
+            if self.is_delete_cache:
+                #os.remove(randomfile)
+                pass
+            final_filename = randomfile
+            if fields_map['name'] == '' or fields_map['images'] == []:
+                self.bad_url_count += 1
+                update_counter_value()
+                with open('error_urls.txt', 'a') as eff:
+                    eff.write(fields_map['url'] + "\n")
+                if self.bad_url_count % 10 == 0:
+                    self.bad_url_count = 0
+                    #sending email as alert
+                    #send_mail("admin@rapidor.co", "pawan.kumar@gmail.com", "NO DATA FOUND", str(fields_map['url']))
+                    pass
+            #update_counter_value()
+        except Exception as ex:
+            error = str(traceback.format_exc())
+            print('ERROR: URL parse error = ', error, ' for url, ', url)
+            with open('error_urls.txt', 'a') as eff:
+                eff.write(url + "\n")
+        return final_filename
+
 
     # Crawl a given url and return filename of the HTML content saved
     def crawl(self, url):
@@ -311,7 +468,8 @@ class CrawlerParser(object):
             from datetime import datetime
             dt = datetime.now()
             print('Starting crawl for url = ', url, ' at time = ', dt)
-            html = self._crawl_using_selenium(url)
+            html = self._crawl_using_requests(url)
+            #html = self._crawl_using_selenium(url)
             dt = datetime.now()
             print('Ended crawl for url = ', url, ' at time = ', dt)
         except Exception as ex:
@@ -338,7 +496,7 @@ class CrawlerParser(object):
                         os.makedirs(path)
                 print("%s = %s" % (url, "started")) 
                 html = self.crawl(url)
-                final_filename = self.parse(url, html)
+                final_filename = self.parse_using_requests(url, html)
                 print('Final filename found = ', final_filename, ' for url = ', url)
                 print("%s = %s" % (url, "ended")) 
                 with open("done_urls.txt", 'a+') as f:
@@ -373,7 +531,7 @@ class CrawlerParser(object):
                         os.makedirs(path)
                 print("%s = %s" % (url, "started")) 
                 html = self.crawl(url)
-                final_filename = self.parse(url, html)
+                final_filename = self.parse_using_requests(url, html)
                 print('Final filename found = ', final_filename, ' for url = ', url)
                 print("%s = %s" % (url, "ended")) 
                 with open("done_urls.txt", 'a+') as f:

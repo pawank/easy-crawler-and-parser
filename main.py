@@ -1,5 +1,7 @@
 import os
 import sys
+import time
+import random
 import traceback
 
 def test_s3_upload():
@@ -116,6 +118,91 @@ def run_in_threads(urls_lists):
         print('ERROR: Run error = ', error)
     return counter
 
+def make_final_json_from_pdp_data(json_data):
+    json_data = json_data["pdpData"] if "pdpData" in json_data else None
+    if json_data:
+        id = json_data["id"]
+        brand = json_data["brand"] if "brand" in json_data else None
+        name = json_data["name"]
+        brand_name = brand["name"] if brand else ""
+        mrp = json_data["mrp"] if "mrp" in json_data else ""
+        productDetails = json_data["productDetails"] if "productDetails" in json_data else []
+        prod = ""
+        care = ""
+        if productDetails:
+            for p in productDetails:
+                if p["title"] == "Product Details":
+                    description = p["description"] if "description" in p else ""
+                    if description:
+                        prod = description
+                if p["title"] == "MATERIAL & CARE":
+                    description = p["description"] if "description" in p else ""
+                    if description:
+                        care = description
+        meta_desc = []
+        serviceability = json_data["serviceability"] if "serviceability" in json_data else None
+        if serviceability:
+            meta_desc = serviceability["descriptors"] if "descriptors" in serviceability else []
+        albums = json_data["media"]["albums"]
+        imgs = []
+        for album in albums:
+            images = album["images"] if "images" in album else []
+            #print("IMAGES: ", images)
+            for img in images:
+                if 'imageURL' in img:
+                    imgs.append(img['imageURL'])
+        from datetime import datetime
+        at = str(datetime.now())
+        j = {
+        "url": "https://www.myntra.com/" + str(id),
+        "brand": brand_name,
+        "name": name.replace(brand_name, "") if brand_name else "",
+        "price": "Rs. " + str(mrp) if mrp else "",
+        "tax": "inclusive of all taxes",
+        "product_details": prod,
+        "material_and_care": care,
+        "meta_desc": meta_desc,
+        "images": imgs,
+        "uploaded_images": [],
+        "at": at,
+        "original":json_data
+        }
+        return j
+    return None
+
+def parse_pdp_data(json_data):
+    images = []
+    if json_data:
+        albums = json_data["pdpData"]["media"]["albums"]
+        for album in albums:
+            images = album["images"] if "images" in album else []
+            print('images: ', images)
+            for imgobj in images:
+                img = imgobj['imageURL'] if 'imageURL' in imgobj else None
+                if img:
+                    print("OLD:", img)
+                    img = img.replace('''($height)''', "720")
+                    img = img.replace('''($qualityPercentage)''', "90")
+
+                    img = img.replace('''($width)''', "540")
+                    print("NEW:", img)
+
+
+def parse_page_request(filename):
+    import simplejson as json
+    data = None
+    with open(filename, 'r') as f:
+        data = f.read()
+    if data:
+        maybejson = data.split("window.__myx = ")[1]
+        maybejson = maybejson.split('''</script><script>window''')[0]
+        #maybejson = maybejson.split("\<\/script\>\<script\>window\[\"")[0]
+        print(maybejson.strip())
+        j = json.loads(maybejson.strip())
+        print("J: ", j)
+        print("\n\nFINAL JSON: ", make_final_json_from_pdp_data(j))
+
+
 def main(argv):
     #test_s3_upload()
     from utils import get_dynamodb_table, save_in_dynamodb, get_files_listed_in_s3, download_from_s3, allocate_new_ip
@@ -126,15 +213,23 @@ def main(argv):
         #get_files_listed_in_s3("projectstore")
         #download_from_s3("projectstore")
         #generate_done_list()
+        #python main.py newip
+        if len(argv) > 1:
+            print('Starting to allocate new IP to the server..')
+            while True:
+                allocate_new_ip()
+                timeDelay = random.randrange(5400, 9000)
+                print('Waiting to reset new IP for seconds, ', timeDelay)
+                time.sleep(timeDelay)
+        else:
+            #parse_page_request("/tmp/769714")
 
-        #generate_error_urls()
-        #generate_good_saved_urls()
-        #generate_styles_stats()
+            generate_error_urls()
+            generate_good_saved_urls()
+            generate_styles_stats()
 
-        #from utils import update_counter_value
-        #update_counter_value()
-
-        allocate_new_ip()
+            #from utils import update_counter_value
+            #update_counter_value()
     else:
         generate_error_urls()
         generate_good_saved_urls()
